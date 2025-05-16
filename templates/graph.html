@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}관계도 보기 - 자산 관리{% endblock %}
+
+{% block head %}
+    {# style.css 로 스타일 이동했으므로 여기 style 태그는 비워두거나 삭제 #}
+{% endblock %}
+
+{% block content %}
+    <h1>자산 관계도</h1>
+    <p>자산과 자산 간의 관계를 시각적으로 보여줍니다.</p>
+    <div id="cy"></div> {# Cytoscape 그래프가 렌더링될 컨테이너 #}
+{% endblock %}
+
+{% block scripts %}
+    {# 다운로드한 Cytoscape.js 파일 로드 #}
+    <script src="{{ url_for('static', filename='js/cytoscape.min.js') }}"></script>
+    {# 또는 CDN 사용:
+    <script src="https://unpkg.com/cytoscape@3.23.0/dist/cytoscape.min.js"></script>
+    #}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Fetching graph data...");
+            fetch('/api/v1/graph') // 백엔드의 그래프 데이터 API 호출
+                .then(response => {
+                    if (!response.ok) {
+                        // 응답 상태가 좋지 않으면 오류의 원인을 파악하기 위해 응답 텍스트를 포함
+                        return response.text().then(text => {
+                            throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Graph data received:", data);
+                    console.log("Type of data.nodes:", typeof data.nodes, "Is data.nodes an array?", Array.isArray(data.nodes));
+
+                    // 데이터 유효성 검사 및 변환
+                    if (!data || typeof data.nodes === 'undefined') {
+                        console.error("Invalid graph data format: 'nodes' property is missing or data is null.", data);
+                        document.getElementById('cy').innerText = '그래프 데이터를 불러오는 데 실패했거나 데이터 형식이 올바르지 않습니다. (nodes 누락)';
+                        return;
+                    }
+
+                    let processedNodes = [];
+                    console.log("Initial processedNodes:", processedNodes);
+
+                    if (Array.isArray(data.nodes)) {
+                        // data.nodes가 이미 올바른 배열 형태일 경우 (이 경우는 현재 제공된 로그와 다름)
+                        processedNodes = data.nodes.map(apiNode => {
+                            // API로부터 받은 노드 객체 예시:
+                            // apiNode = { data: { id: "...", label: "...", type: "...", attributes: { ip: "...", hostname: "..." } }, group: "servers" }
+                            if (!apiNode || !apiNode.data || !apiNode.data.id) {
+                                console.warn("Skipping malformed node from API:", apiNode);
+                                return null; // Filter out problematic nodes
+                            }
+
+                            const { id, label, type, attributes } = apiNode.data;
+                            const apiTopLevelGroup = apiNode.group; // API 응답의 최상위 group 속성
+
+                            // Determine the styling group. Prioritize apiNode.group (top-level from API),
+                            // then apiNode.data.type, then 'unknown'.
+                            const stylingGroup = apiTopLevelGroup || type || 'unknown';
+
+                            // Construct the node object for Cytoscape
+                            // The 'group' for styling must be inside the 'data' object.
+                            // 1. attributes 객체의 속성들을 펼침
+                            // 2. apiNode.data 객체의 속성들을 펼침 (id, label, type 등). 동일한 키가 있다면 attributes의 값을 덮어쓸 수 있음.
+                            // 3. id, label, group을 명시적으로 설정하여 우선순위를 보장.
+                            const finalNodeData = {
+                                ...(attributes || {}), // attributes 객체 내부의 속성들을 최상위로 가져옴
+                                ...apiNode.data,       // id, label, type 등을 포함한 data 객체 속성들
+                                id: id,                // id는 apiNode.data.id에서 가져온 것을 명확히 함
+                                label: label || id,    // label이 없으면 id를 사용
+                                group: stylingGroup // This is for node[group="..."] selector
+                            };
+                            // attributes 객체 자체는 더 이상 필요 없으므로 제거
+                            delete finalNodeData.attributes;
+
+                            return { data: finalNodeData }; // Cytoscape가 요구하는 최종 노드 객체 구조
+                        }).filter(node => node !== null); // Remove any null entries from mapping
+                        console.log("data.nodes is an array. processedNodes:", processedNodes);
+                    } else if (typeof data.nodes === 'object' && data.nodes !== null) {
+                        // data.nodes가 { servers: { id1: {...}, id2: {...} }, sw: {...} } 형태일 경우 평탄화
+                        const nodeGroups = data.nodes;
+                        console.log("data.nodes is an object. Attempting to flatten:", nodeGroups);
+                        for (const groupKey in nodeGroups) { // groupKey는 "servers", "sw" 등
+                            if (Object.prototype.hasOwnProperty.call(nodeGroups, groupKey)) {
+                                const assetsInGroup = nodeGroups[groupKey]; // 예: data.nodes["servers"]는 자산 객체들의 객체
+                                console.log("Processing groupKey:", groupKey, "with assets:", assetsInGroup);
+                                if (typeof assetsInGroup === 'object' && assetsInGroup !== null) {
+                                    for (const assetId in assetsInGroup) {
+                                        if (Object.prototype.hasOwnProperty.call(assetsInGroup, assetId)) {
+                                            const assetData = assetsInGroup[assetId];
+                                            // assetData가 유효하고, id와 name 속성이 있는지 확인
+                                            if (assetData && assetData.id && assetData.name) {
+                                                processedNodes.push({
+                                                    data: { // Styling group should be inside data
+                                                        id: assetData.id,
+                                                        label: assetData.name, // Cytoscape 스타일에서 'label': 'data(label)' 사용
+                                                        group: groupKey,       // 스타일링을 위한 그룹 정보
+                                                        // Spread attributes directly into data for easier access
+                                                        ...(assetData.attributes || {}),
+                                                        type: groupKey // Optionally keep original type if needed elsewhere
+                                                    }
+                                                });
+                                            } else {
+                                                console.warn('Skipping malformed asset object in group:', groupKey, assetId, assetData);
+                                            }
+                                        }
+                                    }
+                                } else {
+                                     console.warn('Assets in groupKey is not an object or is null:', groupKey, assetsInGroup);
+                                }
+                            }
+                        }
+                        console.log("After flattening object, processedNodes:", processedNodes);
+                    } else {
+                        console.error("Invalid data.nodes format: Expected an array or an object of objects.", data.nodes);
+                        document.getElementById('cy').innerText = '그래프 노드 데이터 형식이 올바르지 않습니다.';
+                        return;
+                    }
+
+                    console.log("Final processedNodes before passing to Cytoscape:", processedNodes);
+
+                    // data.edges가 배열인지 확인하고, 아니면 빈 배열로 기본값 설정
+                    const processedEdges = (data.edges && Array.isArray(data.edges)) ? data.edges : [];
+                    if (!(data.edges && Array.isArray(data.edges))) {
+                        console.warn("data.edges is not an array or is missing. Defaulting to empty array. Received:", data.edges);
+                    }
+                    console.log("processedEdges before passing to Cytoscape:", processedEdges);
+
+                    if (processedNodes.length === 0 && processedEdges.length === 0) {
+                        console.warn("No nodes or edges to display. The graph will be empty.");
+                        document.getElementById('cy').innerText = '표시할 데이터가 없습니다.';
+                        // return; // 또는 Cytoscape가 빈 그래프를 렌더링하도록 둠
+                    }
+
+                    const elementsForCytoscape = {
+                        nodes: processedNodes,
+                        edges: processedEdges
+                    };
+                    // Cytoscape에 전달되는 전체 데이터 구조를 문자열로 변환하여 로깅 (디버깅용)
+                    // console.log("Elements being passed to Cytoscape (stringified):", JSON.stringify(elementsForCytoscape, null, 2));
+                    console.log("Elements being passed to Cytoscape (object):", elementsForCytoscape);
+
+
+                    // Cytoscape 초기화
+                    try {
+                        const cy = cytoscape({
+                            container: document.getElementById('cy'), // 그래프를 그릴 div 요소
+
+                            elements: elementsForCytoscape,
+
+                            style: [ // 노드와 엣지 스타일 정의
+                                {
+                                    selector: 'node',
+                                    style: {
+                                        'background-color': '#666',
+                                        'label': 'data(label)', // 'label' 속성 사용
+                                        'width': 'label',
+                                        'height': 'label',
+                                        'padding': '10px',
+                                        'shape': 'round-rectangle',
+                                        'font-size': '10px',
+                                        'text-valign': 'center',
+                                        'text-halign': 'center',
+                                        'color': 'white',
+                                        'text-outline-width': 2,
+                                        'text-outline-color': '#666'
+                                    }
+                                },
+                                // 강조 스타일을 위한 클래스
+                                {
+                                    selector: '.highlighted',
+                                    style: {
+                                        'opacity': 1,
+                                        'z-index': 10 // 다른 요소들보다 위에 보이도록 (필요시)
+                                    }
+                                },
+                                {
+                                    selector: '.dimmed',
+                                    style: {
+                                        'opacity': 0.25
+                                    }
+                                },
+                                {
+                                    selector: '.selected-node-highlight', // 직접 선택된 노드 강조
+                                    style: { 'border-width': 3, 'border-color': '#FFD700' /* 금색 계열 */ }
+                                },
+                                // 타입별 노드 색상 지정 (data.group 값을 사용)
+                                { selector: 'node[group="servers"]', style: { 'background-color': '#F9A825' } },
+                                { selector: 'node[group="os"]', style: { 'background-color': '#1E88E5' } },
+                                { selector: 'node[group="sw"]', style: { 'background-color': '#43A047' } },
+                                { selector: 'node[group="db"]', style: { 'background-color': '#e53935' } },
+                                { selector: 'node[group="web"]', style: { 'background-color': '#FF7043' } }, // WEB 자산 색상 (예: 주황색 계열)
+                                { selector: 'node[group="unknown"]', style: { 'background-color': '#BDBDBD' } }, // 기본 그룹 색상
+                                {
+                                    selector: 'edge',
+                                    style: {
+                                        'width': 2,
+                                        'line-color': '#ccc',
+                                        'target-arrow-color': '#ccc',
+                                        'target-arrow-shape': 'triangle',
+                                        'curve-style': 'bezier',
+                                        'label': 'data(label)', // 엣지 라벨 (엣지 데이터에 'label' 속성이 있어야 함)
+                                        'font-size': '8px',
+                                        'color': '#555',
+                                        'text-rotation': 'autorotate'
+                                    }
+                                }
+                            ],
+
+                            layout: { // 노드 배치 레이아웃 설정
+                                name: 'cose', // cose, circle, concentric, grid, breadthfirst, random 등
+                                idealEdgeLength: 100,
+                                nodeOverlap: 20,
+                                refresh: 20,
+                                fit: true,
+                                padding: 30,
+                                randomize: false,
+                                componentSpacing: 100,
+                                nodeRepulsion: 400000,
+                                edgeElasticity: 100,
+                                nestingFactor: 5,
+                                gravity: 80,
+                                numIter: 1000,
+                                initialTemp: 200,
+                                coolingFactor: 0.95,
+                                minTemp: 1.0
+                                // 다른 레이아웃 옵션:
+                                // name: 'breadthfirst',
+                                // directed: true,
+                                // padding: 10
+                            }
+                        });
+
+                        console.log("Cytoscape instance created:", cy);
+
+                        // 노드 클릭 시 정보 표시 및 영향도 강조
+                        cy.on('tap', 'node', function(evt){
+                          const selectedNode = evt.target;
+                          const neighborhood = selectedNode.neighborhood();
+                          const nodeData = selectedNode.data();
+
+                          console.log( 'tapped ' + nodeData.id + ' data: ', nodeData );
+
+                          // 일괄 업데이트 시작 (성능 향상)
+                          cy.batch(function(){
+                            // 1. 모든 요소의 이전 강조 효과 제거 및 기본 흐림 처리
+                            cy.elements()
+                              .removeClass('highlighted selected-node-highlight')
+                              .addClass('dimmed');
+
+                            // 2. 선택된 노드와 이웃 노드/엣지 강조
+                            selectedNode.removeClass('dimmed').addClass('highlighted selected-node-highlight');
+                            neighborhood.removeClass('dimmed').addClass('highlighted');
+                          });
+
+                          // 기존 알림창 표시는 그대로 유지
+                            let messageParts = [
+                                `ID: ${nodeData.id || 'N/A'}`,
+                                `Label: ${nodeData.label || 'N/A'}`,
+                                `Group: ${nodeData.group || 'N/A'}`
+                            ];
+                            const excludeKeys = ['id', 'label', 'group', 'parent', 'source', 'target', 'originalEvent', 'position'];
+                            for (const key in nodeData) {
+                                if (Object.prototype.hasOwnProperty.call(nodeData, key) && !excludeKeys.includes(key)) {
+                                    const value = nodeData[key];
+                                    if (typeof value !== 'object' && value !== null && typeof value !== 'undefined') {
+                                        messageParts.push(`${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}`);
+                                    }
+                                }
+                            }
+                            alert(messageParts.join('\n'));
+                        });
+
+                        // 그래프 배경 클릭 시 모든 강조 효과 초기화
+                        cy.on('tap', function(evt){
+                            if (evt.target === cy) { // 배경을 클릭했을 때
+                                cy.elements().removeClass('highlighted dimmed selected-node-highlight');
+                            }
+                        });
+                    } catch (e) {
+                        console.error("Error initializing Cytoscape:", e);
+                        document.getElementById('cy').innerText = 'Cytoscape 그래프 초기화 중 오류가 발생했습니다: ' + e.message;
+                    }
+
+                })
+                .catch(error => {
+                    console.error("Error fetching or processing graph data (see details below):", error.message, error);
+                    document.getElementById('cy').innerText = '그래프 데이터를 불러오는 중 오류가 발생했습니다. 오류: ' + error.message;
+                });
+        });
+    </script>
+{% endblock %}

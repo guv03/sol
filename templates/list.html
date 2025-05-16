@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}자산 목록 - 자산 관리{% endblock %}
+
+{% block head %}
+    {# style.css 로 스타일 이동했으므로 여기 style 태그는 비워두거나 삭제 #}
+{% endblock %}
+
+{% block content %}
+    <h1>자산 목록</h1>
+
+    <div id="filter-form">
+        <label for="filter-type">타입:</label>
+        <select id="filter-type">
+            <option value="">-- 전체 --</option>
+            <option value="servers">서버 (Server)</option>
+            <option value="os">운영체제 (OS)</option>
+            <option value="software">소프트웨어 (Software)</option>
+            <!-- 소프트웨어 하위 타입 필터는 필요시 추가 -->
+        </select>
+
+        <label for="filter-name">이름 포함:</label>
+        <input type="text" id="filter-name" placeholder="이름 검색...">
+    </div>
+
+    <table id="asset-table">
+        <thead>
+            <tr>
+                <th>ID (축약)</th>
+                <th>타입</th>
+                <th>이름 (소프트웨어 종류)</th>
+                <th>주요 정보 1</th> {# 예: IP / Version #}
+                <th>주요 정보 2</th> {# 예: Hostname / DB Type #}
+                <th>기타 속성</th>
+                <th>작업</th>
+            </tr>
+        </thead>
+        <tbody id="asset-table-body">
+            <!-- 자산 데이터가 여기에 동적으로 추가됩니다 -->
+            <tr><td colspan="7">로딩 중...</td></tr>
+        </tbody>
+    </table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const tableBody = document.getElementById('asset-table-body');
+    const filterType = document.getElementById('filter-type');
+    const filterName = document.getElementById('filter-name');
+    let allAssetsData = {}; // 모든 자산 데이터를 저장할 변수
+
+    // 모든 자산 데이터를 가져와 테이블을 채우는 함수
+    async function loadAssets() {
+        try {
+            tableBody.innerHTML = '<tr><td colspan="7">로딩 중...</td></tr>'; // 작업 열 추가로 colspan 변경
+            const response = await fetch('/api/v1/assets'); // 모든 자산 가져오기
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || response.statusText}`);
+            }
+            allAssetsData = await response.json();
+            console.log("Assets loaded:", allAssetsData); // 데이터 로드 확인
+            displayFilteredAssets(); // 필터링 없이 초기 표시
+        } catch (error) {
+            console.error("Error loading assets:", error);
+            tableBody.innerHTML = `<tr><td colspan="7">데이터를 불러오는 데 실패했습니다: ${error.message}</td></tr>`; // 작업 열 추가로 colspan 변경
+        }
+    }
+
+    // 현재 필터에 맞게 자산을 화면에 표시하는 함수
+    function displayFilteredAssets() {
+        tableBody.innerHTML = ''; // 테이블 내용 초기화
+        const selectedTopLevelType = filterType.value;
+        const nameFilter = filterName.value.toLowerCase();
+        let hasData = false;
+
+        // allAssetsData가 { "servers": {...}, "os": {...}, "software": {...} } 형태라고 가정
+        for (const topLevelType in allAssetsData) { // "servers", "os", "software"
+            // 최상위 타입 필터링
+            if (selectedTopLevelType && topLevelType !== selectedTopLevelType && topLevelType !== mapTopLevelType(selectedTopLevelType)) {
+                continue;
+            }
+
+            const assetsInCategory = allAssetsData[topLevelType];
+            for (const assetId in assetsInCategory) {
+                const asset = assetsInCategory[assetId]; // 개별 자산 객체
+
+                // 이름 필터링
+                if (nameFilter && (!asset.name || !asset.name.toLowerCase().includes(nameFilter))) {
+                    continue;
+                }
+
+                hasData = true;
+                const row = tableBody.insertRow();
+
+                row.insertCell(0).textContent = asset.id.substring(0, 8);
+
+                // 타입 표시 (소프트웨어의 경우 하위 타입 포함)
+                let displayType = asset.asset_type; // 'servers', 'os', 'software'
+                let displayName = asset.name || 'N/A';
+                const attributes = asset.attributes || {}; // attributes 없으면 빈 객체
+
+                if (asset.asset_type === 'sw') { // API 응답의 asset_type은 'sw'
+                    displayType = `소프트웨어 (${attributes.software_subtype ? attributes.software_subtype.toUpperCase() : 'N/A'})`;
+                } else if (asset.asset_type === 'servers') {
+                    displayType = '서버';
+                } else if (asset.asset_type === 'os') {
+                    displayType = '운영체제';
+                } else if (asset.asset_type === 'db') {
+                    displayType = `데이터베이스 (${attributes.db_type || 'N/A'})`;
+                }
+                row.insertCell(1).textContent = displayType;
+                row.insertCell(2).textContent = displayName;
+
+                // 타입별 주요 정보 채우기
+                let detail1 = '';
+                let detail2 = '';
+                // const attributes = asset.attributes || {}; // 이 줄을 삭제합니다. 위에서 이미 선언됨.
+
+                if (asset.asset_type === 'servers') {
+                    detail1 = attributes.ip || 'N/A'; // 서버 IP는 보통 OS에 있지만, 예시로 남겨둠
+                    detail2 = attributes.hostname || '';
+                } else if (asset.asset_type === 'os') {
+                    detail1 = attributes.version || '';
+                    detail2 = attributes.ip || ''; // OS의 IP
+                } else if (asset.asset_type === 'sw') {
+                    detail1 = attributes.version || '';
+                    if (attributes.software_subtype === 'db_sw') { // DB Software
+                        detail2 = attributes.db_type || '';
+                    }
+                } else if (asset.asset_type === 'db') {
+                    detail1 = attributes.version || '';
+                    detail2 = attributes.db_type || '';
+                }
+
+                row.insertCell(3).textContent = detail1;
+                row.insertCell(4).textContent = detail2;
+
+                // 기타 속성 표시 (주요 정보 제외)
+                let otherAttributes = { ...attributes };
+                // 이미 표시된 주요 속성들 제거
+                if (asset.asset_type === 'servers') {
+                    delete otherAttributes.ip;
+                    delete otherAttributes.hostname;
+                } else if (asset.asset_type === 'os') {
+                    delete otherAttributes.version;
+                    delete otherAttributes.ip;
+                    delete otherAttributes.installed_on_server_id; // 관계 ID는 보통 직접 표시 안 함
+                } else if (asset.asset_type === 'sw') {
+                    delete otherAttributes.version;
+                    delete otherAttributes.runs_on_os_id; // 관계 ID
+                    delete otherAttributes.software_subtype;
+                    if (attributes.software_subtype === 'db_sw') {
+                        delete otherAttributes.db_type;
+                    }
+                    if (attributes.software_subtype === 'web') delete otherAttributes.connected_was_id;
+                    if (attributes.software_subtype === 'was') delete otherAttributes.connected_db_id;
+                } else if (asset.asset_type === 'db') {
+                    delete otherAttributes.version;
+                    delete otherAttributes.runs_on_os_id;
+                    delete otherAttributes.db_type;
+                }
+
+                row.insertCell(5).textContent = JSON.stringify(otherAttributes);
+
+                // 수정 버튼 추가
+                const editButton = document.createElement('a');
+                editButton.href = `/assets/${asset.asset_type}/${asset.id}/edit`;
+                editButton.textContent = '수정';
+                editButton.classList.add('button-edit'); // 필요시 스타일링을 위한 클래스
+                row.insertCell(6).appendChild(editButton);
+            }
+        }
+
+        if (!hasData) {
+             tableBody.innerHTML = '<tr><td colspan="7">표시할 데이터가 없습니다. (필터 결과)</td></tr>'; // 작업 열 추가로 colspan 변경
+        }
+    }
+
+    // 필터 변경 시 displayFilteredAssets 함수 호출
+    filterType.addEventListener('change', displayFilteredAssets);
+    filterName.addEventListener('input', displayFilteredAssets);
+
+    // 페이지 로드 시 자산 데이터 로드
+    document.addEventListener('DOMContentLoaded', loadAssets);
+
+    // 백엔드와 프론트엔드 타입 불일치 매핑 함수
+    function mapTopLevelType(type) {
+        if (type === "software") return "sw";
+        return type;
+    }
+
+
+</script>
+{% endblock %}

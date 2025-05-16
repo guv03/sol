@@ -1,0 +1,234 @@
+/* static/css/style.css */
+
+body {
+    font-family: sans-serif; /* 기본 글꼴 설정 */
+    margin: 0; /* body의 기본 마진 제거 */
+    line-height: 1.6; /* 줄 간격 설정 */
+    background-color: #f8f9fa; /* 약간의 배경색 추가 */
+    color: #333; /* 기본 글자색 */
+}
+
+nav {
+    background-color: #e9ecef; /* 네비게이션 바 배경색 */
+    padding: 10px 20px;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 20px;
+}
+
+nav a {
+    margin-right: 15px;
+    text-decoration: none;
+    color: #007bff; /* 링크 색상 */
+    font-weight: bold;
+}
+
+nav a:hover {
+    text-decoration: underline;
+    color: #0056b3; /* 호버 시 링크 색상 */
+}
+
+.container {
+    padding: 0 20px; /* 좌우 여백 */
+    max-width: 1200px; /* 최대 너비 설정 (선택 사항) */
+    margin: 0 auto; /* 가운데 정렬 (max-width 설정 시) */
+    background-color: #ffffff; /* 컨텐츠 영역 배경색 */
+    padding: 20px; /* 컨텐츠 영역 내부 여백 */
+    border-radius: 5px; /* 컨텐츠 영역 모서리 둥글게 */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* 약간의 그림자 효과 */
+}
+
+h1, h2, h3 {
+    color: #343a40; /* 제목 색상 */
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+}
+
+h1 {
+    border-bottom: 2px solid #dee2e6; /* h1 아래 구분선 */
+    padding-bottom: 0.3em;
+}
+
+
+/* --- 테이블 스타일 --- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    table-layout: fixed; /* 컬럼 너비 고정 위해 추가 */
+    background-color: #fff; /* 테이블 배경색 */
+}
+
+th, td {
+    border: 1px solid #dee2e6; /* 테두리 색상 변경 */
+    padding: 10px 12px; /* 패딩 조절 */
+    text-align: left;
+    word-wrap: break-word; /* 긴 내용 줄바꿈 */
+    vertical-align: top; /* 셀 내용 상단 정렬 */
+}
+
+th {
+    background-color: #f1f3f5; /* 헤더 배경색 변경 */
+    font-weight: bold;
+    color: #495057; /* 헤더 글자색 */
+}
+/* 컬럼 너비 예시 (필요에 따라 조절) */
+th:nth-child(1), td:nth-child(1) { width: 10%; } /* ID */
+th:nth-child(2), td:nth-child(2) { width: 10%; } /* Type */
+th:nth-child(3), td:nth-child(3) { width: 20%; } /* Name */
+th:nth-child(4), td:nth-child(4) { width: 15%; } /* Detail 1 */
+th:nth-child(5), td:nth-child(5) { width: 15%; } /* Detail 2 */
+th:nth-child(6), td:nth-child(6) { width: 30%; } /* Other Attributes */
+
+tr:nth-child(even) {
+    background-color: #f8f9fa; /* 짝수 행 배경색 */
+}
+
+tr:hover {
+    background-color: #e9ecef; /* 행 호버 시 배경색 */
+}
+
+/* --- 폼 스타일 --- */
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #495057;
+}
+
+input[type="text"],
+input[type="password"], /* 다른 input 타입도 필요시 추가 */
+select,
+textarea {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+
+button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.15s ease-in-out; /* 부드러운 색상 전환 효과 */
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+/* --- 메시지 스타일 --- */
+#message {
+    margin-top: 15px;
+    padding: 12px 15px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* --- 필터 폼 스타일 --- */
+#filter-form {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #e9ecef; /* 배경색 변경 */
+    border-radius: 4px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap; /* 화면 작을 때 줄바꿈 */
+}
+
+#filter-form label {
+    margin-bottom: 0;
+    font-weight: normal;
+}
+
+#filter-form input,
+#filter-form select {
+    width: auto; /* 자동 너비 */
+    margin-bottom: 0;
+    padding: 8px 10px; /* 패딩 조절 */
+    flex-grow: 1; /* 가능한 공간 채우기 */
+    min-width: 150px; /* 최소 너비 */
+}
+
+/* --- 그래프 페이지 스타일 --- */
+#cy {
+    width: 100%;
+    height: 600px; /* 그래프 영역 높이 조절 */
+    display: block;
+    border: 1px solid #ced4da; /* 테두리 색상 변경 */
+    background-color: #ffffff; /* 배경색 */
+    border-radius: 4px;
+}
+
+/* --- 자산 타입별 입력 섹션 --- */
+.attributes-section {
+    border: 1px solid #e9ecef;
+    padding: 20px;
+    margin-top: 15px;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+}
+
+.attributes-section h3 {
+    margin-top: 0;
+    color: #495057;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5em;
+    margin-bottom: 1em;
+}
+
+/* 작업 열의 버튼 스타일 */
+#asset-table td .button-edit {
+    display: inline-block; /* 다른 버튼들과 유사하게 */
+    padding: 5px 10px;    /* 버튼 내부 여백 조정 */
+    background-color: #007bff; /* 기본 버튼 색상 */
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.9rem;     /* 테이블 내부에 맞게 폰트 크기 조정 */
+    text-align: center;
+    transition: background-color 0.15s ease-in-out;
+    /* line-height: 1; /* 버튼 높이 조절 필요시 */
+    /* vertical-align: middle; /* 수직 정렬 */
+}
+
+#asset-table td .button-edit:hover {
+    background-color: #0056b3;
+    text-decoration: none;
+}
+
+/* 작업 열(마지막 th, td)의 정렬 및 너비 조정 (선택 사항) */
+#asset-table th:last-child,
+#asset-table td:last-child {
+    text-align: center; /* 버튼을 가운데 정렬하고 싶을 경우 */
+    width: 10%; /* 작업 열의 너비 (예시) */
+}

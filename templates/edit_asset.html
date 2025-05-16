@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block title %}자산 수정 - {{ asset.name }}{% endblock %}
+
+{% block head %}
+    {{ super() }}
+    <style>
+        .attributes-section, .software-subtype-section {
+            border: 1px solid #eee;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .hidden { display: none !important; }
+        .form-group { margin-bottom: 15px; }
+    </style>
+{% endblock %}
+
+{% block content %}
+        <h1>자산 수정: {{ asset.name }} (ID: {{ asset_id[:8] }})</h1>
+        {# API를 사용하므로 form의 action과 method는 JavaScript에서 처리 #}
+        <form id="edit-asset-form">
+            {# CSRF 토큰은 API 방식에서는 헤더로 전송하거나 다른 방식으로 처리 #}
+
+            <div class="form-group">
+                <label for="asset-type-display">자산 타입:</label>
+                <input type="text" id="asset-type-display" value="{{ asset_type_names.get(asset.asset_type, asset.asset_type) }}" disabled>
+            </div>
+
+            <div class="form-group">
+                <label for="asset-name">자산 이름:</label>
+                <input type="text" id="asset-name" name="name" value="{{ asset.name }}" required>
+            </div>
+
+            {/* 서버 속성 */}
+            <div id="server-attributes" class="attributes-section {% if asset.asset_type != 'servers' %}hidden{% endif %}">
+                <h4>서버 상세 정보</h4>
+                <div class="form-group">
+                    <label for="server-hostname">호스트명:</label>
+                    <input type="text" id="server-hostname" name="hostname" value="{{ asset.attributes.hostname if asset.attributes else '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="server-physical-x">물리적 위치 X (0-19):</label>
+                    <input type="number" id="server-physical-x" name="physical_x" min="0" max="19" value="{{ asset.attributes.physical_x if asset.attributes and asset.attributes.physical_x is not none else '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="server-physical-y">물리적 위치 Y (0-19):</label>
+                    <input type="number" id="server-physical-y" name="physical_y" min="0" max="19" value="{{ asset.attributes.physical_y if asset.attributes and asset.attributes.physical_y is not none else '' }}">
+                </div>
+            </div>
+
+            {/* OS 속성 */}
+            <div id="os-attributes" class="attributes-section {% if asset.asset_type != 'os' %}hidden{% endif %}">
+                <h4>운영체제 상세 정보</h4>
+                <div class="form-group">
+                    <label for="os-ip">IP 주소:</label>
+                    <input type="text" id="os-ip" name="ip" value="{{ asset.attributes.ip if asset.attributes else '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="os-version">버전:</label>
+                    <input type="text" id="os-version" name="version" value="{{ asset.attributes.version if asset.attributes else '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="os-installed-on">설치된 서버:</label>
+                    <select id="os-installed-on" name="installed_on_server_id">
+                        <option value="">-- 서버 선택 (선택 사항) --</option>
+                    </select>
+                </div>
+            </div>
+
+            {/* 소프트웨어 공통 및 하위 타입별 속성 (SW, DB 공통 사용) */}
+            <div id="software-attributes-wrapper" class="attributes-section {% if asset.asset_type != 'sw' and asset.asset_type != 'db' %}hidden{% endif %}">
+                <h4>소프트웨어/DB 상세 정보</h4>
+                <div class="form-group" id="software-subtype-group" {% if asset.asset_type == 'db' %}hidden{% endif %}>
+                    <label for="software-subtype">소프트웨어 종류:</label>
+                    <select id="software-subtype" name="software_subtype">
+                        <option value="">-- 종류 선택 --</option>
+                        <option value="web" {% if asset.attributes and asset.attributes.software_subtype == 'web' %}selected{% endif %}>WEB</option>
+                        <option value="was" {% if asset.attributes and asset.attributes.software_subtype == 'was' %}selected{% endif %}>WAS</option>
+                        <option value="db_sw" {% if asset.attributes and asset.attributes.software_subtype == 'db_sw' %}selected{% endif %}>DB Software</option>
+                        <option value="general_sw" {% if asset.attributes and asset.attributes.software_subtype == 'general_sw' %}selected{% endif %}>일반 SW</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="software-version">버전:</label>
+                    <input type="text" id="software-version" name="version" value="{{ asset.attributes.version if asset.attributes else '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="software-runs-on-os">실행되는 OS:</label>
+                    <select id="software-runs-on-os" name="runs_on_os_id">
+                        <option value="">-- OS 선택 (선택 사항) --</option>
+                    </select>
+                </div>
+
+                <div id="software-web-specific" class="software-subtype-section {% if not (asset.attributes and asset.attributes.software_subtype == 'web') %}hidden{% endif %}">
+                    <h5>WEB 상세</h5>
+                    <div class="form-group">
+                        <label for="web-connected-was">연결된 WAS:</label>
+                        <select id="web-connected-was" name="connected_was_id">
+                            <option value="">-- WAS 선택 (선택 사항) --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="software-was-specific" class="software-subtype-section {% if not (asset.attributes and asset.attributes.software_subtype == 'was') %}hidden{% endif %}">
+                    <h5>WAS 상세</h5>
+                    <div class="form-group">
+                        <label for="was-connected-db">연결된 DB:</label>
+                        <select id="was-connected-db" name="connected_db_id">
+                            <option value="">-- DB 선택 (선택 사항) --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="software-db-specific" class="software-subtype-section {% if not ((asset.attributes and asset.attributes.software_subtype == 'db_sw') or asset.asset_type == 'db') %}hidden{% endif %}">
+                     <h5>DB Software / Database 상세</h5>
+                    <div class="form-group">
+                        <label for="db-software-type">DB 종류 (예: PostgreSQL, MySQL):</label>
+                        <input type="text" id="db-software-type" name="db_type" value="{{ asset.attributes.db_type if asset.attributes else '' }}">
+                    </div>
+                </div>
+            </div>
+            <button type="submit">자산 정보 저장</button>
+        </form>
+        <div id="message-area" style="margin-top: 20px;"></div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('edit-asset-form');
+            const messageArea = document.getElementById('message-area');
+
+            const serverAttributes = document.getElementById('server-attributes');
+            const osAttributes = document.getElementById('os-attributes');
+            const softwareAttributesWrapper = document.getElementById('software-attributes-wrapper');
+            const softwareSubtypeGroup = document.getElementById('software-subtype-group');
+
+            const softwareSubtypeSelect = document.getElementById('software-subtype');
+            const softwareWebSpecific = document.getElementById('software-web-specific');
+            const softwareWasSpecific = document.getElementById('software-was-specific');
+            const softwareDbSpecific = document.getElementById('software-db-specific');
+
+            const osInstalledOnServerSelect = document.getElementById('os-installed-on');
+            const softwareRunsOnOsSelect = document.getElementById('software-runs-on-os');
+            const webConnectedWasSelect = document.getElementById('web-connected-was');
+            const wasConnectedDbSelect = document.getElementById('was-connected-db');
+
+            const currentAssetType = "{{ asset.asset_type }}"; // Jinja 템플릿 변수
+            const currentAssetId = "{{ asset_id }}";       // Jinja 템플릿 변수
+            const currentAssetAttributes = {{ asset.attributes | tojson | safe }}; // Jinja 템플릿 변수
+
+            async function fetchAssetsForDropdown(assetTypeToFetch) {
+                let url = `{{ url_for('api.get_all_assets_route') }}?type=${assetTypeToFetch}`;
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`API Error: ${response.status} for ${url}`);
+                    const data = await response.json();
+                    if (data && data[assetTypeToFetch]) return Object.values(data[assetTypeToFetch]);
+                    if (data && Array.isArray(data)) return data; // API가 배열을 직접 반환하는 경우
+                    return [];
+                } catch (error) {
+                    console.error(`Error fetching ${assetTypeToFetch} for dropdown:`, error);
+                    messageArea.textContent = `드롭다운용 ${assetTypeToFetch} 목록 로딩 실패: ${error.message}`;
+                    messageArea.style.color = 'red';
+                    return [];
+                }
+            }
+
+            function populateSelect(selectElement, items, selectedValue) {
+                if (!selectElement) return;
+                while (selectElement.options.length > 1) selectElement.remove(1);
+                if (!Array.isArray(items)) return;
+                items.forEach(item => {
+                    if (typeof item !== 'object' || item === null) return;
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = `${item.name || 'N/A'} (ID: ${item.id.substring(0,8)})`;
+                    if (item.id === selectedValue) option.selected = true;
+                    selectElement.appendChild(option);
+                });
+            }
+
+            async function updateFormVisibilityAndDropdowns() {
+                const selectedSwSubtype = softwareSubtypeSelect ? softwareSubtypeSelect.value : (currentAssetAttributes.software_subtype || '');
+
+                // 모든 관련 섹션 숨기기
+                [serverAttributes, osAttributes, softwareAttributesWrapper, softwareWebSpecific, softwareWasSpecific, softwareDbSpecific, softwareSubtypeGroup]
+                    .forEach(el => el && el.classList.add('hidden'));
+
+                if (currentAssetType === 'servers') {
+                    if(serverAttributes) serverAttributes.classList.remove('hidden');
+                } else if (currentAssetType === 'os') {
+                    if(osAttributes) osAttributes.classList.remove('hidden');
+                    const servers = await fetchAssetsForDropdown('servers');
+                    populateSelect(osInstalledOnServerSelect, servers, currentAssetAttributes.installed_on_server_id);
+                } else if (currentAssetType === 'sw' || currentAssetType === 'db') {
+                    if(softwareAttributesWrapper) softwareAttributesWrapper.classList.remove('hidden');
+                    const osList = await fetchAssetsForDropdown('os');
+                    populateSelect(softwareRunsOnOsSelect, osList, currentAssetAttributes.runs_on_os_id);
+
+                    if (currentAssetType === 'sw') {
+                        if(softwareSubtypeGroup) softwareSubtypeGroup.classList.remove('hidden');
+                        if (selectedSwSubtype === 'web') {
+                            if(softwareWebSpecific) softwareWebSpecific.classList.remove('hidden');
+                            const swAssets = await fetchAssetsForDropdown('sw');
+                            populateSelect(webConnectedWasSelect, swAssets.filter(s => s.attributes && s.attributes.software_subtype === 'was'), currentAssetAttributes.connected_was_id);
+                        } else if (selectedSwSubtype === 'was') {
+                            if(softwareWasSpecific) softwareWasSpecific.classList.remove('hidden');
+                            const dbAssets = await fetchAssetsForDropdown('db');
+                            populateSelect(wasConnectedDbSelect, dbAssets, currentAssetAttributes.connected_db_id);
+                        } else if (selectedSwSubtype === 'db_sw') {
+                            if(softwareDbSpecific) softwareDbSpecific.classList.remove('hidden');
+                        }
+                    } else if (currentAssetType === 'db') {
+                        if(softwareDbSpecific) softwareDbSpecific.classList.remove('hidden');
+                        if(softwareSubtypeGroup) softwareSubtypeGroup.classList.add('hidden');
+                    }
+                }
+            }
+
+            if (softwareSubtypeSelect) {
+                softwareSubtypeSelect.addEventListener('change', updateFormVisibilityAndDropdowns);
+            }
+
+            updateFormVisibilityAndDropdowns(); // 초기 로드
+
+            form.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                messageArea.textContent = '';
+
+                const assetName = document.getElementById('asset-name').value;
+                if (!assetName.trim()) {
+                    messageArea.textContent = '자산 이름을 입력해주세요.';
+                    messageArea.style.color = 'red';
+                    return;
+                }
+
+                let payload = { name: assetName };
+
+                if (currentAssetType === 'servers') {
+                    payload.hostname = document.getElementById('server-hostname').value;
+                    payload.physical_x = document.getElementById('server-physical-x').value;
+                    payload.physical_y = document.getElementById('server-physical-y').value;
+                } else if (currentAssetType === 'os') {
+                    payload.ip = document.getElementById('os-ip').value;
+                    payload.version = document.getElementById('os-version').value;
+                    payload.installed_on_server_id = osInstalledOnServerSelect.value;
+                } else if (currentAssetType === 'sw' || currentAssetType === 'db') {
+                    payload.version = document.getElementById('software-version').value;
+                    payload.runs_on_os_id = softwareRunsOnOsSelect.value;
+
+                    if (currentAssetType === 'sw') {
+                        const swSubtype = softwareSubtypeSelect.value;
+                        if (!swSubtype && currentAssetType === 'sw') { // DB 타입이 아닐 때만 SW 종류 필수
+                             messageArea.textContent = '소프트웨어 종류를 선택해주세요.';
+                             messageArea.style.color = 'red';
+                             return;
+                        }
+                        payload.software_subtype = swSubtype;
+                        if (swSubtype === 'web') {
+                            payload.connected_was_id = webConnectedWasSelect.value;
+                        } else if (swSubtype === 'was') {
+                            payload.connected_db_id = wasConnectedDbSelect.value;
+                        } else if (swSubtype === 'db_sw') {
+                            payload.db_type = document.getElementById('db-software-type').value;
+                        }
+                    } else if (currentAssetType === 'db') {
+                        payload.db_type = document.getElementById('db-software-type').value;
+                    }
+                }
+
+                // 빈 문자열 필드를 null 대신 빈 문자열로 보내도록 서버 API와 협의 필요
+                // 여기서는 빈 문자열을 그대로 보냅니다. 서버에서 None으로 처리할 수 있습니다.
+
+                const apiUrl = `{{ url_for('api.update_asset_route', asset_type='__TYPE__', asset_id='__ID__') }}`
+                                .replace('__TYPE__', currentAssetType)
+                                .replace('__ID__', currentAssetId);
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    const responseData = await response.json();
+                    if (response.ok) {
+                        messageArea.textContent = `자산 '${responseData.name}' 정보가 성공적으로 업데이트되었습니다.`;
+                        messageArea.style.color = 'green';
+                        // 필요시 목록 페이지로 리디렉션: window.location.href = "{{ url_for('list_view') }}";
+                    } else {
+                        messageArea.textContent = `오류: ${responseData.error || response.statusText}`;
+                        messageArea.style.color = 'red';
+                    }
+                } catch (error) {
+                    messageArea.textContent = `요청 실패: ${error.message}`;
+                    messageArea.style.color = 'red';
+                }
+            });
+        });
+    </script>
+{% endblock %}

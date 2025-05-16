@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 각 페이지별 타이틀 설정 -->
+    <title>{% block title %}자산 관리{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"> {# CSS 파일 연결 #}
+    <style>
+        /* base.html에만 필요한 최소한의 스타일 또는 추가 스타일 */
+    </style>
+    <!-- 각 페이지별 추가 head 내용 -->
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav>
+        <a href="{{ url_for('index') }}">자산 추가</a>
+        <a href="{{ url_for('list_view') }}">자산 목록</a>
+        <a href="{{ url_for('graph_view') }}">관계도 보기</a>
+        <a href="{{ url_for('physical_layout_view') }}">서버 물리적 위치도</a>        
+    </nav>
+    <div class="container">
+        <!-- 각 페이지의 메인 콘텐츠가 여기에 삽입됨 -->
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- 각 페이지별 추가 script 내용 -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>
