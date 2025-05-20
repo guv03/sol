@@ -226,6 +226,7 @@ def get_graph_data_route():
                 })
                 processed_nodes.add(asset_id)
 
+    # 1. 명시적으로 저장된 관계들을 엣지로 추가
     all_relationships = storage.get_all_relationships()
     for rel in all_relationships:
         edges.append({
@@ -236,5 +237,31 @@ def get_graph_data_route():
                 "label": rel.relation_type
             }
         })
+
+    # 2. WAS 자산의 connected_db_id 속성을 기반으로 암시적 관계(엣지) 추가
+    #    이 로직은 nodes 리스트가 완전히 준비된 후에 실행되어야 합니다.
+    for node_info in nodes:
+        node_data = node_info.get("data", {})
+        asset_id = node_data.get("id")
+
+        # 자산 타입이 'sw' (소프트웨어)이고, attributes가 있으며, software_subtype이 'was'인 경우
+        if node_data.get("type") == "sw" and "attributes" in node_data:
+            attributes = node_data.get("attributes", {})
+            if attributes.get("software_subtype") == "was":
+                connected_db_id = attributes.get("connected_db_id")
+                if connected_db_id:
+                    # 연결 대상 DB 자산이 실제로 존재하는지 확인 (선택 사항이지만 권장)
+                    target_db_asset = storage.get_asset_by_id(connected_db_id)
+                    if target_db_asset and target_db_asset.asset_type == 'db':
+                        edges.append({
+                            "data": {
+                                "source": asset_id,  # WAS 자산의 ID
+                                "target": connected_db_id, # 연결된 DB 자산의 ID
+                                "label": "connects_to_db"  # 관계 라벨 (예시)
+                                # "id": f"implicit_was_db_{asset_id}_{connected_db_id}" # 고유 ID 필요시
+                            }
+                        })
+                    else:
+                        print(f"Warning: Target DB asset '{connected_db_id}' for WAS '{asset_id}' not found or is not a DB type.")
 
     return jsonify({"nodes": nodes, "edges": edges})
